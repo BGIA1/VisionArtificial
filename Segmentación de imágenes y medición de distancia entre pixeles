@@ -6,5 +6,180 @@ from scipy.spatial import distance
 from operator import indexOf
 import math
 
+def segmentarImagen(imagen):
 
+    ret,thresh1 = cv2.threshold(imagen,70,255,cv2.THRESH_BINARY)
+    img=imagen
+    img=cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
+    vectorized = img.reshape((-1,3))
+
+    vectorized = np.float32(vectorized)
+
+    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 10, 1.0)
+
+    K = 4
+    attempts=10
+    ret,label,center=cv2.kmeans(vectorized,K,None,criteria,attempts,cv2.KMEANS_PP_CENTERS)
+
+    center =np.uint8(center)
+
+    res = center[label.flatten()]
+    result_image = res.reshape((img.shape))
+
+    median = cv2.medianBlur(cv2.cvtColor(result_image,cv2.COLOR_BGR2RGB),7)
+
+
+    ret,thresh1 = cv2.threshold(median,50,255,cv2.THRESH_BINARY)
+
+    img_gray=cv2.cvtColor(thresh1,cv2.COLOR_BGR2GRAY)
+
+
+    img_not = cv2.bitwise_not(img_gray)
+
+    ret,thresh2 = cv2.threshold(img_not,20,255,cv2.THRESH_BINARY)
+
+    img=median = cv2.medianBlur(cv2.cvtColor(thresh2,cv2.COLOR_BGR2RGB),9)
+
+    k=3
+    # Apply Gaussian Blur
+    blur = cv2.GaussianBlur(img,(k,k),0)
+
+    # Apply Laplacian operator in some higher datatype
+    laplacian = cv2.Laplacian(blur,cv2.CV_8UC1)
+
+    ret,thresh3 = cv2.threshold(laplacian,45,255,cv2.THRESH_BINARY)
+
+    imagen_segmentada=cv2.cvtColor(thresh3,cv2.COLOR_BGR2GRAY)
+
+    return imagen_segmentada
+
+def trazarJitomate(img,pixel_inicial):
+    pixeles=[]
+    pixel_actual=pixel_inicial
+    pixeles.append(pixel_actual)
+    k=1   
+    while(1):
+        ban=0
+        if(img[pixel_actual[0]+k][pixel_actual[1]+k]==255 and not (pixel_actual[0]+k,pixel_actual[1]+k) in pixeles):
+            pixeles.append((pixel_actual[0]+k,pixel_actual[1]+k))
+            prox_pixel=(pixel_actual[0]+k,pixel_actual[1]+k)
+            ban=1
+        if(img[pixel_actual[0]-k][pixel_actual[1]-k]==255 and not (pixel_actual[0]-k,pixel_actual[1]-k) in pixeles):
+            pixeles.append((pixel_actual[0]-k,pixel_actual[1]-k)) 
+            prox_pixel=(pixel_actual[0]-k,pixel_actual[1]-k)
+            ban=1
+        if(img[pixel_actual[0]+k][pixel_actual[1]-k]==255 and not (pixel_actual[0]+k,pixel_actual[1]-k) in pixeles): 
+            pixeles.append((pixel_actual[0]+k,pixel_actual[1]-k)) 
+            prox_pixel=(pixel_actual[0]+k,pixel_actual[1]-k)
+            ban=1
+        if(img[pixel_actual[0]-k][pixel_actual[1]+k]==255 and not (pixel_actual[0]-k,pixel_actual[1]+k) in pixeles):
+            pixeles.append((pixel_actual[0]-k,pixel_actual[1]+k)) 
+            prox_pixel=(pixel_actual[0]-k,pixel_actual[1]+k)
+            ban=1
+        if(img[pixel_actual[0]+k][pixel_actual[1]]==255 and not (pixel_actual[0]+k,pixel_actual[1]) in pixeles):
+            pixeles.append((pixel_actual[0]+k,pixel_actual[1])) 
+            prox_pixel=(pixel_actual[0]+k,pixel_actual[1])
+            ban=1
+        if(img[pixel_actual[0]-k][pixel_actual[1]]==255 and not (pixel_actual[0]-k,pixel_actual[1]) in pixeles):
+            pixeles.append((pixel_actual[0]-k,pixel_actual[1])) 
+            prox_pixel=(pixel_actual[0]-k,pixel_actual[1])
+            ban=1
+        if(img[pixel_actual[0]][pixel_actual[1]+k]==255 and not (pixel_actual[0],pixel_actual[1]+k) in pixeles):
+            pixeles.append((pixel_actual[0],pixel_actual[1]+k)) 
+            prox_pixel=(pixel_actual[0],pixel_actual[1]+k)
+            ban=1
+        if(img[pixel_actual[0]][pixel_actual[1]-k]==255 and not (pixel_actual[0],pixel_actual[1]-k) in pixeles):  
+            pixeles.append((pixel_actual[0],pixel_actual[1]-k)) 
+            prox_pixel=(pixel_actual[0],pixel_actual[1]-k)
+            ban=1
+        if(ban==1):
+            k=1 
+            pixel_actual=prox_pixel
+        else:   #Ban == 0 No encontro mas bordes
+            if(k<2):
+                k+=1
+            else:
+                break
+
+        
+
+    return pixeles    
+             
+
+img_original=cv2.imread('j.jpg')
+img=segmentarImagen(img_original)
+#img=cv2.imread('resultado.png')
+#img=cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
+
+rows,cols=img.shape
+jitomates=[]
+k=-1
+#Recorro la imagen
+for i in range(rows):
+    for j in range(cols):
+        if (img[i][j]==255):
+            if(k==-1):
+                jitomate=trazarJitomate(img,(i,j))
+                k=0
+                jitomates.append(jitomate)
+                #print(len(jitomate))
+            else:
+                b=0
+                for jit in jitomates:
+                    if((i,j) not in jit):    #Jitomate nuevo
+                        b+=1  
+                if(b==k+1):
+                    jitomates.append(trazarJitomate(img,(i,j)))
+                    k+=1    
+
+
+max_distance=-1
+
+
+distancias=[]
+
+
+x1,x2,y1,y2=0,0,0,0
+lineas=[]
+coordenadas={"x":[],"y":[]} #Diccionario con las coordenadas
+for k in range(2):
+    for i in range(len(jitomates[k])):
+        for j in range(i+1,len(jitomates[k])):
+            distance=math.dist(jitomates[k][i],jitomates[k][j])
+            if(distance>max_distance):
+                x1,x2,y1,y2=jitomates[k][i][1],jitomates[k][j][1],jitomates[k][i][0],jitomates[k][j][0]
+                coordenadas.update({"x":[x1,x2],"y":[y1,y2]})   
+                max_distance=distance
+    lineas.append(coordenadas) 
+ 
+
+print(lineas) 
+#y=[cols-lineas[0]["y"][0],cols-lineas[0]["y"][1]]
+fig, ax = plt.subplots()
+plt.gca().invert_yaxis()
+im = ax.imshow(cv2.cvtColor(img,cv2.COLOR_GRAY2BGR))
+ax.plot(lineas[0]["x"], lineas[0]["y"],linewidth=2, color='red')
+ax.plot(lineas[1]["x"], lineas[1]["y"],linewidth=2, color='green')
+
+#cv2.imshow("Imagen original", img_original)
+#cv2.imshow("Imagen segmentada", img)
+
+fig1 = plt.figure(figsize=(10, 7)) 
+rows = 1
+columns = 2
+fig1.add_subplot(rows, columns, 1) 
+  
+plt.imshow(img_original) 
+plt.axis('off') 
+plt.title("Imagen Original") 
+
+fig1.add_subplot(rows, columns, 2) 
+  
+plt.imshow(img) 
+plt.axis('off') 
+plt.title("Imagen segmentada") 
+
+#cv2.waitKey(0)
+#cv2.destroyAllWindows()
+plt.show()
 
