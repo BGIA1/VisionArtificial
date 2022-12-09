@@ -5,3 +5,6 @@ from sklearn.cluster import KMeans
 from scipy.spatial import distance
 from operator import indexOf
 import math
+
+
+
